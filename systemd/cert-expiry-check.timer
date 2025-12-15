@@ -1,0 +1,14 @@
+[Unit]
+Description=Check SSL certificate expiry daily
+Requires=cert-expiry-check.service
+
+[Timer]
+# Run daily at 6 AM
+OnCalendar=06:00
+# Also run 10 minutes after boot
+OnBootSec=10min
+# If a check was missed, run it when possible
+Persistent=true
+
+[Install]
+WantedBy=timers.target

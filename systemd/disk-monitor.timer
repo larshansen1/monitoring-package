@@ -1,0 +1,12 @@
+[Unit]
+Description=Run disk space monitor every 6 hours
+Requires=disk-monitor.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=6h
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

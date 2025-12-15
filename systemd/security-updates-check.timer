@@ -1,0 +1,14 @@
+[Unit]
+Description=Check for security updates daily
+Requires=security-updates-check.service
+
+[Timer]
+# Run daily at 8 AM
+OnCalendar=08:00
+# Also run 20 minutes after boot
+OnBootSec=20min
+# If a check was missed, run it when possible
+Persistent=true
+
+[Install]
+WantedBy=timers.target
