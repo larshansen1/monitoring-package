@@ -1,0 +1,10 @@
+# Real credentials — NEVER commit. Copy telegram.conf.example and fill in locally.
+telegram.conf
+
+# Archived ntfy-era scripts: dead code, and they hardcode a personal ntfy topic.
+scripts-old-ntfy/
+
+# Local runtime noise
+*.log
+__pycache__/
+*.pyc

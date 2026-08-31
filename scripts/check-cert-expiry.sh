@@ -1,16 +1,17 @@
 #!/bin/bash
 #
-# SSL Certificate Expiry Monitor
+# SSL Certificate Expiry Monitor (Telegram Version)
 # Alerts when certificates are close to expiring
 #
 
 set -e
 
+# Load Telegram notification library
+source /usr/local/lib/monitoring/telegram-notify.sh
+
 # Configuration
 WARNING_DAYS=14  # Alert when cert expires in less than this many days
 CRITICAL_DAYS=7  # Critical alert when cert expires in less than this many days
-NTFY_TOPIC="madmetal-server-alerts-$(hostname)"
-NTFY_URL="https://ntfy.sh/${NTFY_TOPIC}"
 
 # Logging
 LOG_FILE="/var/log/cert-expiry-check.log"
@@ -53,25 +54,23 @@ send_critical_alert() {
 
     log "CRITICAL: ${domain} expires in ${days} days!"
 
-    curl -H "Title: 🚨 SSL Certificate Expiring Soon!" \
-         -H "Priority: urgent" \
-         -H "Tags: ssl,cert,critical" \
-         -d "CRITICAL: SSL certificate for ${domain} expires in ${days} days!
+    MESSAGE="🚨 *SSL Certificate Expiring Soon!*
 
-Expiry Date: ${expiry}
+*CRITICAL: Certificate expires in ${days} days!*
+
 Domain: ${domain}
+Expiry Date: ${expiry}
 Days Remaining: ${days}
 
-⚠️ URGENT ACTION REQUIRED:
+⚠️ URGENT ACTION REQUIRED
 The certificate should have renewed automatically but hasn't!
 
-Check certbot renewal:
-  sudo certbot renew --dry-run
-  sudo journalctl -u certbot.service
+What would you like to do?"
 
-If renewal is failing, you may need to renew manually:
-  sudo certbot renew --force-renewal" \
-         "$NTFY_URL"
+    telegram_send_with_buttons "$MESSAGE" \
+        "🔄 Renew Certificate|cert_renew_${domain}" \
+        "🔍 Check Status|cert_status" \
+        "❌ Dismiss|dismiss"
 }
 
 send_warning_alert() {
@@ -81,21 +80,21 @@ send_warning_alert() {
 
     log "WARNING: ${domain} expires in ${days} days"
 
-    curl -H "Title: ⚠️ SSL Certificate Expiring" \
-         -H "Priority: high" \
-         -H "Tags: ssl,cert,warning" \
-         -d "SSL certificate for ${domain} expires in ${days} days
+    MESSAGE="⚠️ *SSL Certificate Expiring*
 
-Expiry Date: ${expiry}
+Certificate expires in ${days} days
+
 Domain: ${domain}
+Expiry Date: ${expiry}
 Days Remaining: ${days}
 
 The certificate should renew automatically, but monitor it closely.
 
-Check certbot status:
-  sudo certbot certificates
-  sudo systemctl status certbot.timer" \
-         "$NTFY_URL"
+Would you like to check the status?"
+
+    telegram_send_with_buttons "$MESSAGE" \
+        "🔍 Check Certbot Status|cert_status" \
+        "❌ Dismiss|dismiss"
 }
 
 log "=== Starting Certificate Expiry Check ==="

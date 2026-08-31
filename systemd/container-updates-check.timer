@@ -1,0 +1,14 @@
+[Unit]
+Description=Run container updates check daily at midnight
+Requires=container-updates-check.service
+
+[Timer]
+# Run daily at midnight
+OnCalendar=daily
+# Also run 10 minutes after boot
+OnBootSec=10min
+# If a check was missed, run it when possible
+Persistent=true
+
+[Install]
+WantedBy=timers.target

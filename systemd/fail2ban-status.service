@@ -1,0 +1,13 @@
+[Unit]
+Description=Fail2ban Daily Status Report
+After=network-online.target fail2ban.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fail2ban-daily-status.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

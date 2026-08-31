@@ -1,14 +1,14 @@
 #!/bin/bash
 #
-# Security Updates Monitor
-# Alerts when critical security updates are available
+# Security Updates Monitor (Telegram Version)
+# Alerts when critical security updates are available with action buttons
 #
 
 set -e
 
-# Configuration
-NTFY_TOPIC="madmetal-server-alerts-$(hostname)"
-NTFY_URL="https://ntfy.sh/${NTFY_TOPIC}"
+# Load Telegram notification library
+source /usr/local/lib/monitoring/telegram-notify.sh
+
 LOG_FILE="/var/log/security-updates-check.log"
 
 # Thresholds
@@ -19,88 +19,12 @@ log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-# Alert functions
-send_critical_alert() {
-    local security=$1
-    local total=$2
-    local packages=$3
-
-    log "CRITICAL: ${security} security updates available!"
-
-    # Truncate package list if too long
-    local pkg_list=$(echo "$packages" | head -10 | tr '\n' ', ' | sed 's/,$//')
-    if [ $(echo "$packages" | wc -l) -gt 10 ]; then
-        pkg_list="${pkg_list}... and more"
-    fi
-
-    curl -H "Title: 🚨 Critical Security Updates!" \
-         -H "Priority: urgent" \
-         -H "Tags: security,updates,critical" \
-         -d "⚠️ ${security} SECURITY UPDATES AVAILABLE
-
-Server: $(hostname)
-Security Updates: ${security}
-Total Updates: ${total}
-
-Critical packages:
-${pkg_list}
-
-🔧 To update:
-  sudo apt update
-  sudo apt upgrade
-
-Or auto-update security only:
-  sudo unattended-upgrade" \
-         "$NTFY_URL"
-}
-
-send_warning_alert() {
-    local security=$1
-    local total=$2
-    local packages=$3
-
-    log "WARNING: ${security} security updates available"
-
-    local pkg_list=$(echo "$packages" | head -5 | tr '\n' ', ' | sed 's/,$//')
-
-    curl -H "Title: ⚠️ Security Updates Available" \
-         -H "Priority: high" \
-         -H "Tags: security,updates,warning" \
-         -d "Security updates available for $(hostname)
-
-Security Updates: ${security}
-Total Updates: ${total}
-
-Packages: ${pkg_list}
-
-Update when convenient:
-  sudo apt update && sudo apt upgrade" \
-         "$NTFY_URL"
-}
-
-send_info_alert() {
-    local total=$1
-
-    log "INFO: ${total} updates available (no security updates)"
-
-    curl -H "Title: 📦 System Updates Available" \
-         -H "Priority: low" \
-         -H "Tags: updates,info" \
-         -d "${total} regular updates available on $(hostname)
-
-No security updates at this time.
-
-Update when convenient:
-  sudo apt update && sudo apt upgrade" \
-         "$NTFY_URL"
-}
+log "=== Checking for Security Updates ==="
 
 # Update package lists
-log "=== Checking for Security Updates ==="
 apt-get update -qq 2>&1 | tee -a "$LOG_FILE" > /dev/null
 
 # Get update counts
-# apt-check returns: <regular_updates>;<security_updates>
 UPDATE_INFO=$(/usr/lib/update-notifier/apt-check 2>&1)
 TOTAL_UPDATES=$(echo "$UPDATE_INFO" | cut -d';' -f1)
 SECURITY_UPDATES=$(echo "$UPDATE_INFO" | cut -d';' -f2)
@@ -109,24 +33,79 @@ log "Total updates available: ${TOTAL_UPDATES}"
 log "Security updates available: ${SECURITY_UPDATES}"
 
 # Get list of security updates
+SECURITY_PACKAGES=""
 if [ "$SECURITY_UPDATES" -gt 0 ]; then
     SECURITY_PACKAGES=$(apt-get upgrade --dry-run 2>/dev/null | \
         grep -i security | \
         awk '{print $2}' | \
         grep -v '^$' | \
         sort -u | \
-        head -20)
+        head -10)
 
     log "Security packages: ${SECURITY_PACKAGES}"
 fi
 
-# Check if there are critical security updates
+# Prepare package list for message
+PKG_LIST=""
+if [ -n "$SECURITY_PACKAGES" ]; then
+    PKG_LIST=$(echo "$SECURITY_PACKAGES" | head -5 | sed 's/^/  • /' | tr '\n' '|' | sed 's/|$//' | tr '|' '\n')
+    PKG_COUNT=$(echo "$SECURITY_PACKAGES" | wc -l)
+    if [ "$PKG_COUNT" -gt 5 ]; then
+        PKG_LIST="${PKG_LIST}
+  • ...and $((PKG_COUNT - 5)) more"
+    fi
+fi
+
+# Send appropriate alert
 if [ "$SECURITY_UPDATES" -ge "$CRITICAL_THRESHOLD" ]; then
-    send_critical_alert "$SECURITY_UPDATES" "$TOTAL_UPDATES" "$SECURITY_PACKAGES"
+    log "CRITICAL: ${SECURITY_UPDATES} security updates available!"
+
+    MESSAGE="*${SECURITY_UPDATES} SECURITY UPDATES AVAILABLE*
+
+Security Updates: ${SECURITY_UPDATES}
+Total Updates: ${TOTAL_UPDATES}
+
+Critical packages:
+${PKG_LIST}
+
+🔧 What would you like to do?"
+
+    telegram_send_with_buttons "$MESSAGE" \
+        "🔄 Update Now|update_server" \
+        "❌ Dismiss|dismiss"
+
 elif [ "$SECURITY_UPDATES" -gt 0 ]; then
-    send_warning_alert "$SECURITY_UPDATES" "$TOTAL_UPDATES" "$SECURITY_PACKAGES"
+    log "WARNING: ${SECURITY_UPDATES} security updates available"
+
+    MESSAGE="*Security Updates Available*
+
+Security Updates: ${SECURITY_UPDATES}
+Total Updates: ${TOTAL_UPDATES}
+
+Packages:
+${PKG_LIST}
+
+Would you like to update now?"
+
+    telegram_send_with_buttons "$MESSAGE" \
+        "🔄 Update Now|update_server" \
+        "❌ Dismiss|dismiss"
+
 elif [ "$TOTAL_UPDATES" -ge "$WARNING_THRESHOLD" ]; then
-    send_info_alert "$TOTAL_UPDATES"
+    log "INFO: ${TOTAL_UPDATES} updates available (no security updates)"
+
+    MESSAGE="*System Updates Available*
+
+${TOTAL_UPDATES} regular updates available
+
+No critical security updates at this time.
+
+Update when convenient?"
+
+    telegram_send_with_buttons "$MESSAGE" \
+        "🔄 Update Now|update_server" \
+        "❌ Dismiss|dismiss"
+
 else
     log "System is up to date (${TOTAL_UPDATES} non-security updates available)"
 fi

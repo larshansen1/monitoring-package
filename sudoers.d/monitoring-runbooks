@@ -1,0 +1,8 @@
+# Sudoers configuration for monitoring runbooks
+# Install to /etc/sudoers.d/monitoring-runbooks
+# Make sure to set permissions: chmod 0440 /etc/sudoers.d/monitoring-runbooks
+
+# Allow the bot to execute specific runbook scripts without password
+root ALL=(ALL) NOPASSWD: /etc/monitoring/runbooks/update-server.sh
+root ALL=(ALL) NOPASSWD: /etc/monitoring/runbooks/update-containers.sh
+root ALL=(ALL) NOPASSWD: /usr/sbin/shutdown
