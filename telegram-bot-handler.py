@@ -138,6 +138,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_restart_action(query, param)
     elif action == "disk":
         await handle_disk_action(query, param)
+    elif action == "docker":
+        await handle_docker_action(query, param)
     elif action == "cert":
         await handle_cert_action(query, param)
     elif action == "fail2ban":
@@ -362,6 +364,96 @@ async def handle_disk_action(query, param):
                     f"Error:\n```\n{result.stderr[-500:]}\n```",
                     parse_mode='Markdown'
                 )
+        except Exception as e:
+            await query.edit_message_text(
+                f"{original_text}\n\n"
+                f"❌ Error: {str(e)}"
+            )
+
+
+async def handle_docker_action(query, param):
+    """Handle Docker image prune actions"""
+    original_text = query.message.text
+
+    if param == "dryrun":
+        await query.edit_message_text(
+            f"{original_text}\n\n"
+            f"⏳ Checking what a Docker prune would remove..."
+        )
+
+        try:
+            result = subprocess.run(
+                [f"{RUNBOOKS_DIR}/docker-prune.sh"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env={**os.environ, "DRY_RUN": "1"}
+            )
+
+            if result.returncode == 0:
+                keyboard = [
+                    [InlineKeyboardButton("🐳 Prune Now", callback_data="docker_prune")],
+                    [InlineKeyboardButton("❌ Dismiss", callback_data="dismiss")]
+                ]
+                await query.edit_message_text(
+                    f"{original_text}\n\n"
+                    f"🔍 *Docker Prune Preview*\n\n"
+                    f"```\n{result.stdout[-1000:]}\n```",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            else:
+                await query.edit_message_text(
+                    f"{original_text}\n\n"
+                    f"❌ Preview failed!\n\n"
+                    f"Error:\n```\n{result.stderr[-500:]}\n```",
+                    parse_mode='Markdown'
+                )
+        except subprocess.TimeoutExpired:
+            await query.edit_message_text(
+                f"{original_text}\n\n"
+                f"⚠️ Preview timed out (2 min limit)"
+            )
+        except Exception as e:
+            await query.edit_message_text(
+                f"{original_text}\n\n"
+                f"❌ Error: {str(e)}"
+            )
+
+    elif param == "prune":
+        await query.edit_message_text(
+            f"{original_text}\n\n"
+            f"⏳ Pruning Docker images..."
+        )
+
+        try:
+            result = subprocess.run(
+                [f"{RUNBOOKS_DIR}/docker-prune.sh"],
+                capture_output=True,
+                text=True,
+                timeout=600  # 10 minute timeout
+            )
+
+            if result.returncode == 0:
+                await query.edit_message_text(
+                    f"{original_text}\n\n"
+                    f"✅ Docker images pruned!\n\n"
+                    f"```\n{result.stdout[-800:]}\n```",
+                    parse_mode='Markdown'
+                )
+            else:
+                await query.edit_message_text(
+                    f"{original_text}\n\n"
+                    f"❌ Prune failed!\n\n"
+                    f"Error:\n```\n{result.stderr[-500:]}\n```",
+                    parse_mode='Markdown'
+                )
+        except subprocess.TimeoutExpired:
+            await query.edit_message_text(
+                f"{original_text}\n\n"
+                f"⚠️ Prune timed out (10 min limit)\n"
+                f"Check /var/log/docker-prune-runbook.log"
+            )
         except Exception as e:
             await query.edit_message_text(
                 f"{original_text}\n\n"

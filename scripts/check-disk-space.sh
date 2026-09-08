@@ -48,6 +48,8 @@ Action needed to free up space!"
 
     telegram_send_with_buttons "$MESSAGE" \
         "📊 Show Top Files|disk_topfiles" \
+        "🔍 Preview Docker Prune|docker_dryrun" \
+        "🐳 Prune Docker Images|docker_prune" \
         "🗑️ Clean Apt Cache|disk_cleanup" \
         "❌ Dismiss|dismiss"
 
