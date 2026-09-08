@@ -191,6 +191,68 @@ Freed: 4GB
 
 ---
 
+### docker-prune.sh
+
+**Purpose:** Reclaims disk space taken by Docker images left behind by repeated deploys.
+
+**Triggered by:**
+- Disk space alerts (via "Prune Docker Images" / "Preview Docker Prune" buttons)
+- Manual trigger via `/docker_prune` and `/docker_dryrun` callbacks
+
+**What it does:**
+1. Collects every image ID referenced by a container (running *or* stopped) — these are never removed
+2. Groups the remaining images by repository, newest first
+3. Keeps the newest `KEEP_PER_REPO` unused tags per repository
+4. Removes surplus tags and dangling `<none>` images older than `MIN_AGE_HOURS`
+5. Prunes build cache older than `BUILD_CACHE_RETENTION`
+6. Reports images removed, space freed, and before/after disk usage
+7. Logs to `/var/log/docker-prune-runbook.log`
+
+**Environment overrides:**
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KEEP_PER_REPO` | `3` | Unused tags kept per repository |
+| `MIN_AGE_HOURS` | `48` | Age floor before an image may be removed |
+| `BUILD_CACHE_RETENTION` | `168h` | Build cache older than this is pruned |
+| `DRY_RUN` | `0` | Set to `1` to report targets without deleting |
+
+**Execution time:** 5-60 seconds
+
+**Modifies system:** Yes (removes images) — unless `DRY_RUN=1`
+
+**Space recovered:** Depends on deploy churn; on a CI-heavy host typically several GB
+
+**Location:** `/etc/monitoring/runbooks/docker-prune.sh`
+
+**Example output:**
+```
+=== DOCKER PRUNE COMPLETE ===
+
+Images removed: 27 (73 -> 46)
+Freed: 9.1GB
+Disk used: 68G -> 59G
+Current usage: 71%
+
+Kept newest 3 unused tags per repo; in-use images and volumes untouched.
+```
+
+**Safety notes:**
+- Images in use by any container are protected **by image ID**, so a running
+  container is never left without its image even if its tag was re-pointed
+- The `MIN_AGE_HOURS` floor keeps an in-flight deploy from being pruned mid-roll-out
+- **Volumes and networks are never pruned.** Named volumes can hold live
+  application state and a blanket `docker volume prune` is unrecoverable — use
+  the "Preview Docker Prune" button first if you want to see targets before deleting
+- Removed images are re-pullable from the registry
+
+**Relation to the standalone cleanup timer:** hosts that also run the weekly
+`docker-image-cleanup.timer` use the same keep-last-N-per-repo policy. This
+runbook is the on-demand version, for when a disk alert arrives before the
+weekly run.
+
+---
+
 ## Certificate Management Runbooks
 
 ### cert-status.sh

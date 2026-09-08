@@ -41,6 +41,7 @@ All alerts include **action buttons** to:
 - Update and restart containers
 - Renew SSL certificates
 - Clean up disk space
+- Prune stale Docker images
 - View detailed status
 
 ### Automated Runbooks
@@ -77,6 +78,7 @@ monitoring-package/
 │   ├── cert-status.sh          # Certificate status
 │   ├── disk-cleanup.sh         # Disk cleanup
 │   ├── disk-topfiles.sh        # Disk analysis
+│   ├── docker-prune.sh         # Docker image prune (keep newest N per repo)
 │   └── fail2ban-status.sh      # Fail2ban details
 │
 ├── lib/
@@ -308,7 +310,7 @@ The source directory (`monitoring-package/`) will remain - delete manually if de
 ## 📦 What's Included
 
 - **5 monitoring scripts** with interactive buttons
-- **7 automated runbooks** for common tasks
+- **8 automated runbooks** for common tasks
 - **Telegram bot handler** with Python
 - **Notification library** for easy integration
 - **Complete documentation**
